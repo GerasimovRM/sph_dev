@@ -2,6 +2,7 @@
 #include <fstream>
 #include <math.h>
 #include <algorithm>
+#include <time.h>
 
 using namespace std;
 
@@ -36,25 +37,31 @@ void rho_sum(
 				double* z,
 				double*& density,
 				double* mass,
+				int* count_neigbors,
+				int** verlet_list,
 				double h,
 				int N) {
+					
 	double del_x, del_y, del_z;
 	double distance2, wfd;
 	double ih = 1. / h;
 	double ihsq = ih * ih;
 	double h2 = h * h;
 	int i, j;
+	int count;
+	int atom;
+	int* part_of_verlet_list;
 	
 	for (i = 0; i < N; ++i)
 	{
+		count = count_neigbors[i];
+		part_of_verlet_list = verlet_list[i];
+		
 		wfd = 2.1541870227086614782 / (h * h * h);
 		density[i] = mass[i] * wfd;
-
-
-		for (j = 0; j < N; ++j)
-		{
-			if (i == j)
-				continue;
+	
+		for (atom = 0; atom < count; ++atom) {
+			j = part_of_verlet_list[atom];
 			del_x = x[i] - x[j];
 			del_y = y[i] - y[j];
 			del_z = z[i] - z[j];
@@ -68,28 +75,28 @@ void rho_sum(
 				wfd = 2.1541870227086614782e0 * wfd * ihsq * ih;		
 
 				density[i] += mass[j] * wfd;
-				if (i == 0)
+				/*if (i == 0)
 				{
 					printf("%f\n", wfd);
 					printf("rho[0]:=%f\n", density[i]);
-				}
-			}
-			
+				}*/
+			}			
 		}
+		//printf("%d\n", count);
 	}
 }
 
 void taitwater(
-					double*& x,
-					double*& y,
-					double*& z,
-					double*& Vx_est,
-					double*& Vy_est,
-					double*& Vz_est,
+					double* x,
+					double* y,
+					double* z,
+					double* Vx_est,
+					double* Vy_est,
+					double* Vz_est,
 					double*& Fx,
 					double*& Fy,
 					double*& Fz,
-					double*& mass,
+					double* mass,
 					double*& density,
 					double*& energy,
 					double*& d_density,
@@ -207,20 +214,22 @@ void taitwater(
 }
 
 void taitwater_morris(
-						double*& x,
-						double*& y,
-						double*& z,
-						double*& Vx_est,
-						double*& Vy_est,
-						double*& Vz_est,
+						double* x,
+						double* y,
+						double* z,
+						double* Vx_est,
+						double* Vy_est,
+						double* Vz_est,
 						double*& Fx,
 						double*& Fy,
 						double*& Fz,
-						double*& mass,
+						double* mass,
 						double*& density,
 						double*& energy,
 						double*& d_density,
 						double*& d_energy,
+						int* count_neigbors,
+						int** verlet_list,
 						double h,
 						double density_0,
 						double sound_velocity,
@@ -252,6 +261,9 @@ void taitwater_morris(
 	double mu;
 	double fvisc;
 	double deltaE;
+	int count;
+	int atom;
+	int* part_of_verlet_list;
 
 	fill(Fx, Fx + N, 0.);
 	fill(Fy, Fy + N, 0.);
@@ -264,16 +276,19 @@ void taitwater_morris(
 		tmp = density[i] / density_0;
 		fi = tmp * tmp * tmp;
 		fi = (sound_velocity * sound_velocity * density_0 / 7) * (fi * fi * tmp - 1) / (density[i] * density[i]);
-
-		for (j = 0; j < N; ++j) {
-			if (i == j)
-				continue;
+		
+		count = count_neigbors[i];
+		part_of_verlet_list = verlet_list[i];
+		if (i == 0)
+			printf("%d\n", count);
+		for (atom = 0; atom < count; ++atom) {
+			j = part_of_verlet_list[atom];
 			del_x = x[i] - x[j];
 			del_y = y[i] - y[j];
 			del_z = z[i] - z[j];
 
 			distance2 = del_x * del_x + del_y * del_y + del_z * del_z;
-			if (distance2 < h2) {				
+			if (distance2 < h2)
 				distance = sqrt(distance2);
 				wfd = h - distance;
 				wfd = -25.066903536973515383e0 * wfd * wfd * ihsq * ihsq * ihsq * ih;
@@ -317,24 +332,24 @@ void taitwater_morris(
 				d_density[i] += mass[j] * delVdelR * wfd;
 				d_energy[i] += deltaE;
 				
-				if (i == 0)
+				/*if (i == 0)
 				{
 					printf("%e %e %e %e %e %e\n", x[j], y[j], z[j], fpair, delVdelR, fvisc);
-				}
-			}
+				}*/
+			
 		}
-		if (i == 0)
-			printf("%e %e %e\n", Fx[i], Fy[i], Fz[i]);
+		//if (i == 0)
+		//	printf("%e %e %e\n", Fx[i], Fy[i], Fz[i]);
 	}
 }
 
 void heatconduction(
-						double*& x,
-						double*& y,
-						double*& z,
-						double*& mass,
-						double*& density,
-						double*& energy,
+						double* x,
+						double* y,
+						double* z,
+						double* mass,
+						double* density,
+						double* energy,
 						double*& d_energy,
 						double h,
 						double alpha,
@@ -382,38 +397,124 @@ void heatconduction(
 	
 }
 
-int main() {
-	// Parameters
-	/*=====================================================================================================*/
-	int count_of_steps = 500;
+void calculate_neighbors_atom(
+								double* x,
+								double* y,
+								double* z,
+								int*& count_neigbors,
+								int*& part_of_verlet_list,
+								double skin_size,
+								int index,
+								int N) {
 	
+	int j;
+	int count = 0;
+	double distance2;
+	double h2 = skin_size * skin_size;
+	double cur_x = x[index];
+	double cur_y = y[index];
+	double cur_z = z[index];
+	double del_x, del_y, del_z;
+	/*printf("%f %f %f %d\n", cur_x, cur_y, cur_z, index);*/
+	
+	for (j = 0; j < N; ++j) {
+		if (index == j)
+			continue;
+		del_x = cur_x - x[j];
+		del_y = cur_y - y[j];
+		del_z = cur_z - z[j];
+		
+		distance2 = del_x * del_x + del_y * del_y + del_z * del_z;
+		
+		if (distance2 < h2) {
+			/*printf("%f %f\n", distance2, h2);
+			printf("%f %f %f %d\n", x[j], y[j], z[j], index);*/
+			part_of_verlet_list[count] = j;
+			count++;
+		}
+	}
+	count_neigbors[index] = count;
+}
+
+void check_shift_matrix(
+							double* x,
+							double* y,
+							double* z,
+							double*& shift_matrix,
+							int*& count_neigbors,
+							int**& verlet_list,
+							double h,
+							double skin_size,
+							int N) {
+	
+	int i;
+	double delta_skin = skin_size - h;
+	
+	for (i = 0; i < N; ++i) {
+		if (shift_matrix[i] > delta_skin) {
+			calculate_neighbors_atom(x, y, z, count_neigbors, verlet_list[i], skin_size, i, N);
+			shift_matrix[i] = 0.;
+		}
+	}
+
+}
+
+int main() {
+	// Physical model parameters
+	/*=====================================================================================================*/
 	double mesh_size = 0.005; // m
 	double h = 1.5 * mesh_size; // m
-	double h2 = h * h;
 	double sound_velocity = 10; // m/s
 	double density_0 = 1000.; // kg/m^3
 	double heat_capacity_volume = 700.; // [Cv]: Dj / (K * m^3)
 	double viscosity = 1.;
-	//double temperature_0 = 300.; // K
-	//double temperature_melting = 1688.; // K
-	//double lambda = 16.76;
 	double volume_particle = mesh_size * mesh_size * mesh_size; // m^3
 	double mass_particle = volume_particle * density_0; // kg
-	//printf("%f", mas_particle);
-	//double d_coeff = lambda / (heat_capacity_volume * density_0);
 	double d_coeff = 1e-4;
 	double dt = 0.01 * h / sound_velocity;
-	printf("%e %e\n", mass_particle, dt);
-
-	ofstream out_file("output.xyz");
-	/*=====================================================================================================*/
-
-	// Data variables
-	/*=====================================================================================================*/
+	
 	int a = 10;
 	int b = 10;
 	int c = 10;
+	
+	//double temperature_0 = 300.; // K
+	//double temperature_melting = 1688.; // K
+	//double lambda = 16.76;
+	//double d_coeff = lambda / (heat_capacity_volume * density_0);
+	/*=====================================================================================================*/
+
+	
+	
+	// Calculate parameters and buffers
+	/*=====================================================================================================*/
+	int count_of_steps = 100;
+	
+	const int MAX_NEIGBORS = 50;
+	double skin_size = h * 1.2;
+	
 	int N = a * b * c;
+	
+	
+	int time, i, j;
+	double distance, distance2;
+	double del_x, del_y, del_z;
+	double del_Vx, del_Vy, del_Vz;
+	double ih = 1. / h, ihsq = ih * ih, wfd;
+	double tmp, fi, fj;
+	double fpair;
+	double delVdelR;
+	double mu;
+	double fvisc;
+	double h2 = h * h;
+	double Vx_cur, Vy_cur, Vz_cur;
+	
+	ofstream out_file("output.xyz");
+	/*=====================================================================================================*/
+
+	
+
+	// Pointers
+	/*=====================================================================================================*/
 
 	double* x = new double[N];
 	double* y = new double[N];
@@ -439,21 +540,17 @@ int main() {
 
 	double* d_energy = new double[N];
 	double* d_density = new double[N];
+	
+	int* count_neigbors = new int[N];
+	int** verlet_list = new int*[N]; 
+	for (i = 0; i < N; ++i)
+		verlet_list[i] = new int[MAX_NEIGBORS];
+	
+	double* shift_matrix = new double[N];
+	
+	
 	/*=====================================================================================================*/
 
-	/*Buffers*/
-	/*=====================================================================================================*/
-	int time, i, j;
-	double distance, distance2;
-	double del_x, del_y, del_z;
-	double del_Vx, del_Vy, del_Vz;
-	double ih = 1. / h, ihsq = ih * ih, wfd;
-	double tmp, fi, fj;
-	double fpair;
-	double delVdelR;
-	double mu;
-	double fvisc;
-	/*=====================================================================================================*/
 
 	// Data initialize
 	/*=====================================================================================================*/
@@ -483,21 +580,25 @@ int main() {
 	fill(energy, energy + N, 0.);
 	fill(density, density + N, 0.);
 	
-	rho_sum(x, y, z, density, mass, h, N);
+	fill(count_neigbors, count_neigbors + N, 0);
+	fill(shift_matrix, shift_matrix + N, 0.);
+		
+	for (i = 0; i < N; ++i)
+		calculate_neighbors_atom(x, y, z, count_neigbors, verlet_list[i], skin_size, i, N);
 	
-	
-	
-	
-	
+	rho_sum(x, y, z, density, mass, count_neigbors, verlet_list, h, N);
+			
 	/*=====================================================================================================*/
+
 
 
 	// Time integrartion
 	/*=====================================================================================================*/
 	
 	/* Step 0*/
-	taitwater_morris(x, y, z, Vx_est, Vy_est, Vz_est, Fx, Fy, Fz, mass, density, energy, d_density, d_energy, h, density_0, sound_velocity, viscosity, N);
-		/*Step 1: Initial integration*/
+	taitwater_morris(x, y, z, Vx_est, Vy_est, Vz_est, Fx, Fy, Fz, mass, density, energy, d_density, d_energy, count_neigbors, verlet_list, h, density_0, sound_velocity, viscosity, N);
+	heatconduction(x, y, z, mass, density, energy, d_energy, d_coeff, h, N);
+	double tt_time = clock();
 	for (time = 0; time < count_of_steps; ++time)
 	{
 		cout << time << endl;
@@ -523,13 +624,19 @@ int main() {
 			Vy[i] += Fy[i] * dt / (2 * mass[i]);
 			Vz[i] += Fz[i] * dt / (2 * mass[i]);
 
-			x[i] += Vx[i] * dt;
-			y[i] += Vy[i] * dt;
-			z[i] += Vz[i] * dt;	
+			Vx_cur = Vx[i] * dt;
+			Vy_cur = Vy[i] * dt;
+			Vz_cur = Vz[i] * dt;
+			
+			shift_matrix[i] += sqrt(Vx_cur * Vx_cur + Vy_cur * Vy_cur + Vz_cur * Vz_cur);
+			
+			x[i] += Vx_cur;
+			y[i] += Vy_cur;
+			z[i] += Vz_cur;	
 		}
 
 		/*Step 2: Calculate forces, d_density, d_energy*/
-		taitwater_morris(x, y, z, Vx_est, Vy_est, Vz_est, Fx, Fy, Fz, mass, density, energy, d_density, d_energy, h, density_0, sound_velocity, viscosity, N);
+		taitwater_morris(x, y, z, Vx_est, Vy_est, Vz_est, Fx, Fy, Fz, mass, density, energy, d_density, d_energy, count_neigbors, verlet_list, h, density_0, sound_velocity, viscosity, N);
 		heatconduction(x, y, z, mass, density, energy, d_energy, d_coeff, h, N);
 		
 		/*Step 3: Final integration*/
@@ -542,16 +649,23 @@ int main() {
 				energy[i] += d_energy[i] * dt / 2;
 				density[i] += d_density[i] * dt / 2;
 		}
+		
 		/*Read data*/
 		if (time % 10 == 0)
 			read_data_xyz(out_file, x, y, z, Fx, Fy, Fz, density, energy, N);
+		
+		//check_shift_matrix(x, y, z, shift_matrix, count_neigbors, verlet_list, h, skin_size, N);
+		for (i = 0; i < N; ++i)
+			calculate_neighbors_atom(x, y, z, count_neigbors, verlet_list[i], skin_size, i, N);
 	}
 	/*=====================================================================================================*/
+	printf("%f", clock() - tt_time);
 	
 	
 	// It's a DESTRUCTION TIME
 	/*=====================================================================================================*/
 	out_file.close();
+	
 	delete[]x;
 	delete[]y;
 	delete[]z;
@@ -577,6 +691,7 @@ int main() {
 	delete[]d_energy;
 	delete[]d_density;
 	/*=====================================================================================================*/
+
 
 	
 	return 0;

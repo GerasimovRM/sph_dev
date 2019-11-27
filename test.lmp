@@ -11,7 +11,7 @@ create_atoms 1 box
 variable h equal "1.5 * 0.005" # SPH smoothing length
 variable c equal 10.0 # soundspeed for Tait’s EOS
 variable dt equal 0.01*${h}/${c} # CFL criterion for upper limit of timestep
-variable nrun equal 500 # number of timesteps to run
+variable nrun equal 20000 # number of timesteps to run
 
 mass 1 1.25e-4
 set group all meso/e 0. 
