@@ -4,14 +4,14 @@ boundary s s s
 units si
 
 lattice sc 0.005 
-region box block 0 10 0 10 0 10 units lattice
+region box block 0 19 0 19 0 19 units lattice
 create_box 1 box
 create_atoms 1 box
 
 variable h equal "1.5 * 0.005" # SPH smoothing length
 variable c equal 10.0 # soundspeed for Tait’s EOS
 variable dt equal 0.01*${h}/${c} # CFL criterion for upper limit of timestep
-variable nrun equal 20000 # number of timesteps to run
+variable nrun equal 1000 # number of timesteps to run
 
 mass 1 1.25e-4
 set group all meso/e 0. 

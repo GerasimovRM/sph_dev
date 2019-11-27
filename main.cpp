@@ -261,6 +261,7 @@ void taitwater_morris(
 	double mu;
 	double fvisc;
 	double deltaE;
+	
 	int count;
 	int atom;
 	int* part_of_verlet_list;
@@ -271,7 +272,6 @@ void taitwater_morris(
 	fill(Fz, Fz + N, 0.);
 	fill(d_density, d_density + N, 0.);
 	fill(d_energy, d_energy + N, 0.);
-	printf("taitwater_morris!\n");
 	for (i = 0; i < N; ++i) {
 		tmp = density[i] / density_0;
 		fi = tmp * tmp * tmp;
@@ -279,8 +279,6 @@ void taitwater_morris(
 		
 		count = count_neigbors[i];
 		part_of_verlet_list = verlet_list[i];
-		if (i == 0)
-			printf("%d\n", count);
 		for (atom = 0; atom < count; ++atom) {
 			j = part_of_verlet_list[atom];
 			del_x = x[i] - x[j];
@@ -289,25 +287,10 @@ void taitwater_morris(
 
 			distance2 = del_x * del_x + del_y * del_y + del_z * del_z;
 			if (distance2 < h2)
+			{
 				distance = sqrt(distance2);
 				wfd = h - distance;
 				wfd = -25.066903536973515383e0 * wfd * wfd * ihsq * ihsq * ihsq * ih;
-				
-
-				//wfd = 2.08890862808113 * (-12 * distance + 24 * distance2 - 12 * distance * distance2) / (h * h * h * h);
-				/*
-				if (distance <= 1) {
-					tmp = 2.25 * distance2 - 3 * distance;
-				}
-				else if (distance <= 2) {
-					tmp = 2 - distance;
-					tmp = -0.75 * tmp * tmp;
-				}
-				else {
-					continue;
-				}
-				wfd = 0.3183098861837906 * tmp / (h * h * h);
-				*/
 
 				tmp = density[j] / density_0;
 				fj = tmp * tmp * tmp;
@@ -331,15 +314,8 @@ void taitwater_morris(
 
 				d_density[i] += mass[j] * delVdelR * wfd;
 				d_energy[i] += deltaE;
-				
-				/*if (i == 0)
-				{
-					printf("%e %e %e %e %e %e\n", x[j], y[j], z[j], fpair, delVdelR, fvisc);
-				}*/
-			
+			}
 		}
-		//if (i == 0)
-		//	printf("%e %e %e\n", Fx[i], Fy[i], Fz[i]);
 	}
 }
 
@@ -351,6 +327,8 @@ void heatconduction(
 						double* density,
 						double* energy,
 						double*& d_energy,
+						int* count_neigbors,
+						int** verlet_list,
 						double h,
 						double alpha,
 						int N) {
@@ -372,10 +350,15 @@ void heatconduction(
 
 	double deltaE;
 	
+	int count;
+	int atom;
+	int* part_of_verlet_list;
+	
 	for (i = 0; i < N; ++i) {
-		for (j = 0; j < N; ++j) {
-			if (i == j)
-				continue;
+		count = count_neigbors[i];
+		part_of_verlet_list = verlet_list[i];
+		for (atom = 0; atom < count; ++atom) {
+			j = part_of_verlet_list[atom];
 			del_x = x[i] - x[j];
 			del_y = y[i] - y[j];
 			del_z = z[i] - z[j];
@@ -473,9 +456,9 @@ int main() {
 	double d_coeff = 1e-4;
 	double dt = 0.01 * h / sound_velocity;
 	
-	int a = 10;
-	int b = 10;
-	int c = 10;
+	int a = 20;
+	int b = 20;
+	int c = 20;
 	
 	//double temperature_0 = 300.; // K
 	//double temperature_melting = 1688.; // K
@@ -487,10 +470,10 @@ int main() {
 	
 	// Calculate parameters and buffers
 	/*=====================================================================================================*/
-	int count_of_steps = 100;
+	int count_of_steps = 1000;
 	
 	const int MAX_NEIGBORS = 50;
-	double skin_size = h * 1.2;
+	double skin_size = h * 1.05;
 	
 	int N = a * b * c;
 	
@@ -597,19 +580,12 @@ int main() {
 	
 	/* Step 0*/
 	taitwater_morris(x, y, z, Vx_est, Vy_est, Vz_est, Fx, Fy, Fz, mass, density, energy, d_density, d_energy, count_neigbors, verlet_list, h, density_0, sound_velocity, viscosity, N);
-	heatconduction(x, y, z, mass, density, energy, d_energy, d_coeff, h, N);
-	double tt_time = clock();
+	heatconduction(x, y, z, mass, density, energy, d_energy, count_neigbors, verlet_list, d_coeff, h, N);double tt_time = clock();
 	for (time = 0; time < count_of_steps; ++time)
 	{
-		cout << time << endl;
+		if (time % 10 == 0)
+			cout << time << endl;
 		
-		/*Write file on 0 step*/
-		/*
-		if (time == 0)
-			read_data_xyz(out_file, x, y, z, Fx, Fy, Fz, density, energy, N);
-		*/
-		
-		/*Step 1: Initial integration*/
 		for (i = 0; i < N; ++i)
 		{
 			energy[i] += d_energy[i] * dt / 2.; // half-step update of particle internal energy
@@ -637,7 +613,7 @@ int main() {
 
 		/*Step 2: Calculate forces, d_density, d_energy*/
 		taitwater_morris(x, y, z, Vx_est, Vy_est, Vz_est, Fx, Fy, Fz, mass, density, energy, d_density, d_energy, count_neigbors, verlet_list, h, density_0, sound_velocity, viscosity, N);
-		heatconduction(x, y, z, mass, density, energy, d_energy, d_coeff, h, N);
+		heatconduction(x, y, z, mass, density, energy, d_energy, count_neigbors, verlet_list, d_coeff, h, N);
 		
 		/*Step 3: Final integration*/
 		for (i = 0; i < N; ++i) 
@@ -654,9 +630,7 @@ int main() {
 		if (time % 10 == 0)
 			read_data_xyz(out_file, x, y, z, Fx, Fy, Fz, density, energy, N);
 		
-		//check_shift_matrix(x, y, z, shift_matrix, count_neigbors, verlet_list, h, skin_size, N);
-		for (i = 0; i < N; ++i)
-			calculate_neighbors_atom(x, y, z, count_neigbors, verlet_list[i], skin_size, i, N);
+		check_shift_matrix(x, y, z, shift_matrix, count_neigbors, verlet_list, h, skin_size, N);
 	}
 	/*=====================================================================================================*/
 	printf("%f", clock() - tt_time);
