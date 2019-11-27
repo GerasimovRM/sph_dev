@@ -1,0 +1,46 @@
+atom_style meso
+dimension 3
+boundary s s s
+units si
+
+lattice sc 0.005 
+region box block 0 10 0 10 0 10 units lattice
+create_box 1 box
+create_atoms 1 box
+
+variable h equal "1.5 * 0.005" # SPH smoothing length
+variable c equal 10.0 # soundspeed for Tait’s EOS
+variable dt equal 0.01*${h}/${c} # CFL criterion for upper limit of timestep
+variable nrun equal 500 # number of timesteps to run
+
+mass 1 1.25e-4
+set group all meso/e 0. 
+
+
+pair_style hybrid/overlay sph/rhosum 1000 sph/taitwater/morris sph/heatconduction
+# use rho_0=1000, soundspeed ${c}, art. viscosity=1.0, smoothing length ${h}
+pair_coeff 1 1 sph/taitwater/morris 1000.0 ${c} 1.0 ${h}
+pair_coeff * * sph/rhosum ${h} # only do density summation for water
+pair_coeff * * sph/heatconduction 1. ${h}
+
+#pair_style sph/taitwater
+#pair_coeff * * 1000.0 ${c} 1.0 ${h}
+
+
+compute rho_peratom all meso/rho/atom
+compute e_peratom all meso/e/atom
+
+
+dump dump_id all custom 10 dump.xyz id type xs ys zs c_rho_peratom c_e_peratom fx fy
+dump_modify dump_id first yes
+
+fix integrate_water_fix all meso
+
+
+
+timestep ${dt}
+
+#neigh_modify every 1 delay 0 check no
+#variable skin equal 2*${h}
+#neighbor ${skin} bin # set Verlet list skin distance
+run ${nrun}
