@@ -21,7 +21,7 @@ pair_style hybrid/overlay sph/rhosum 1000 sph/taitwater/morris sph/heatconductio
 # use rho_0=1000, soundspeed ${c}, art. viscosity=1.0, smoothing length ${h}
 pair_coeff 1 1 sph/taitwater/morris 1000.0 ${c} 1.0 ${h}
 pair_coeff * * sph/rhosum ${h} # only do density summation for water
-pair_coeff * * sph/heatconduction 1. ${h}
+pair_coeff * * sph/heatconduction 1e-4 ${h}
 
 #pair_style sph/taitwater
 #pair_coeff * * 1000.0 ${c} 1.0 ${h}

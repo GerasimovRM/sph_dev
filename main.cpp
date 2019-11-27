@@ -30,7 +30,14 @@ void read_data_xyz(
 	}
 }
 
-void rho_sum(double* x, double* y, double* z, double*& density, double* mass, double h, int N) {
+void rho_sum(
+				double* x,
+				double* y,
+				double* z,
+				double*& density,
+				double* mass,
+				double h,
+				int N) {
 	double del_x, del_y, del_z;
 	double distance2, wfd;
 	double ih = 1. / h;
@@ -73,25 +80,25 @@ void rho_sum(double* x, double* y, double* z, double*& density, double* mass, do
 }
 
 void taitwater(
-	double*& x,
-	double*& y,
-	double*& z,
-	double*& Vx_est,
-	double*& Vy_est,
-	double*& Vz_est,
-	double*& Fx,
-	double*& Fy,
-	double*& Fz,
-	double*& mass,
-	double*& density,
-	double*& energy,
-	double*& d_density,
-	double*& d_energy,
-	double h,
-	double density_0,
-	double sound_velocity,
-	double viscosity,
-	int N) {
+					double*& x,
+					double*& y,
+					double*& z,
+					double*& Vx_est,
+					double*& Vy_est,
+					double*& Vz_est,
+					double*& Fx,
+					double*& Fy,
+					double*& Fz,
+					double*& mass,
+					double*& density,
+					double*& energy,
+					double*& d_density,
+					double*& d_energy,
+					double h,
+					double density_0,
+					double sound_velocity,
+					double viscosity,
+					int N) {
 		
 		
 	int i;
@@ -394,7 +401,7 @@ int main() {
 	double mass_particle = volume_particle * density_0; // kg
 	//printf("%f", mas_particle);
 	//double d_coeff = lambda / (heat_capacity_volume * density_0);
-	double d_coeff = 1.;
+	double d_coeff = 1e-4;
 	double dt = 0.01 * h / sound_velocity;
 	printf("%e %e\n", mass_particle, dt);
 
@@ -475,8 +482,12 @@ int main() {
 	fill(pressure, pressure + N, 0.);
 	fill(energy, energy + N, 0.);
 	fill(density, density + N, 0.);
-
+	
 	rho_sum(x, y, z, density, mass, h, N);
+	
+	
+	
+	
 	
 	/*=====================================================================================================*/
 
@@ -496,6 +507,7 @@ int main() {
 		if (time == 0)
 			read_data_xyz(out_file, x, y, z, Fx, Fy, Fz, density, energy, N);
 		*/
+		
 		/*Step 1: Initial integration*/
 		for (i = 0; i < N; ++i)
 		{
@@ -519,6 +531,7 @@ int main() {
 		/*Step 2: Calculate forces, d_density, d_energy*/
 		taitwater_morris(x, y, z, Vx_est, Vy_est, Vz_est, Fx, Fy, Fz, mass, density, energy, d_density, d_energy, h, density_0, sound_velocity, viscosity, N);
 		heatconduction(x, y, z, mass, density, energy, d_energy, d_coeff, h, N);
+		
 		/*Step 3: Final integration*/
 		for (i = 0; i < N; ++i) 
 		{
@@ -534,8 +547,37 @@ int main() {
 			read_data_xyz(out_file, x, y, z, Fx, Fy, Fz, density, energy, N);
 	}
 	/*=====================================================================================================*/
-
+	
+	
+	// It's a DESTRUCTION TIME
+	/*=====================================================================================================*/
 	out_file.close();
-	//system("pause");
+	delete[]x;
+	delete[]y;
+	delete[]z;
+
+	delete[]Vx;
+	delete[]Vy;
+	delete[]Vz;
+
+	delete[]Vx_est;
+	delete[]Vy_est;
+	delete[]Vz_est;
+
+	delete[]Fx;
+	delete[]Fy;
+	delete[]Fz;
+	
+	delete[]energy;
+	delete[]density;
+	delete[]pressure;
+	
+	delete[]mass;
+	
+	delete[]d_energy;
+	delete[]d_density;
+	/*=====================================================================================================*/
+
+	
 	return 0;
 }
