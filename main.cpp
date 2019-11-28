@@ -3,6 +3,7 @@
 #include <math.h>
 #include <algorithm>
 #include <time.h>
+#include <omp.h>
 
 using namespace std;
 
@@ -66,21 +67,18 @@ void rho_sum(
 			del_y = y[i] - y[j];
 			del_z = z[i] - z[j];
 
-			distance2 = del_x * del_x + del_y * del_y + del_z * del_z;
-			if (distance2 <  h2)
-			{			
-				wfd = 1. - distance2 * ihsq;
-				wfd = wfd * wfd;
-				wfd = wfd * wfd;
-				wfd = 2.1541870227086614782e0 * wfd * ihsq * ih;		
+			distance2 = del_x * del_x + del_y * del_y + del_z * del_z;	
+			wfd = 1. - distance2 * ihsq;
+			wfd = wfd * wfd;
+			wfd = wfd * wfd;
+			wfd = 2.1541870227086614782e0 * wfd * ihsq * ih;		
 
-				density[i] += mass[j] * wfd;
-				/*if (i == 0)
-				{
-					printf("%f\n", wfd);
-					printf("rho[0]:=%f\n", density[i]);
-				}*/
-			}			
+			density[i] += mass[j] * wfd;
+			/*if (i == 0)
+			{
+				printf("%f\n", wfd);
+				printf("rho[0]:=%f\n", density[i]);
+			}*/		
 		}
 		//printf("%d\n", count);
 	}
@@ -286,35 +284,32 @@ void taitwater_morris(
 			del_z = z[i] - z[j];
 
 			distance2 = del_x * del_x + del_y * del_y + del_z * del_z;
-			if (distance2 < h2)
-			{
-				distance = sqrt(distance2);
-				wfd = h - distance;
-				wfd = -25.066903536973515383e0 * wfd * wfd * ihsq * ihsq * ihsq * ih;
+			distance = sqrt(distance2);
+			wfd = h - distance;
+			wfd = -25.066903536973515383e0 * wfd * wfd * ihsq * ihsq * ihsq * ih;
 
-				tmp = density[j] / density_0;
-				fj = tmp * tmp * tmp;
-				fj = (sound_velocity * sound_velocity * density_0 / 7) * (fj * fj * tmp - 1) / (density[j] * density[j]);
+			tmp = density[j] / density_0;
+			fj = tmp * tmp * tmp;
+			fj = (sound_velocity * sound_velocity * density_0 / 7) * (fj * fj * tmp - 1) / (density[j] * density[j]);
 
-				del_Vx = Vx_est[i] - Vx_est[j];
-				del_Vy = Vy_est[i] - Vy_est[j];
-				del_Vz = Vz_est[i] - Vz_est[j];
+			del_Vx = Vx_est[i] - Vx_est[j];
+			del_Vy = Vy_est[i] - Vy_est[j];
+			del_Vz = Vz_est[i] - Vz_est[j];
 
-				delVdelR = del_x * del_Vx + del_y * del_Vy + del_z * del_Vz;
-				
-				fvisc = 2 * viscosity / (density[i] * density[j]);
-				fvisc *= mass[i] * mass[j] * wfd;
+			delVdelR = del_x * del_Vx + del_y * del_Vy + del_z * del_Vz;
+			
+			fvisc = 2 * viscosity / (density[i] * density[j]);
+			fvisc *= mass[i] * mass[j] * wfd;
 
-				fpair = -mass[i] * mass[j] * (fi + fj) * wfd;
-				deltaE = -0.5 * (fpair * delVdelR + fvisc * (del_Vx * del_Vx + del_Vy * del_Vy + del_Vz * del_Vz));
+			fpair = -mass[i] * mass[j] * (fi + fj) * wfd;
+			deltaE = -0.5 * (fpair * delVdelR + fvisc * (del_Vx * del_Vx + del_Vy * del_Vy + del_Vz * del_Vz));
 
-				Fx[i] += del_x * fpair + del_Vx * fvisc;
-				Fy[i] += del_y * fpair + del_Vy * fvisc;
-				Fz[i] += del_z * fpair + del_Vz * fvisc;
+			Fx[i] += del_x * fpair + del_Vx * fvisc;
+			Fy[i] += del_y * fpair + del_Vy * fvisc;
+			Fz[i] += del_z * fpair + del_Vz * fvisc;
 
-				d_density[i] += mass[j] * delVdelR * wfd;
-				d_energy[i] += deltaE;
-			}
+			d_density[i] += mass[j] * delVdelR * wfd;
+			d_energy[i] += deltaE;
 		}
 	}
 }
@@ -364,17 +359,15 @@ void heatconduction(
 			del_z = z[i] - z[j];
 
 			distance2 = del_x * del_x + del_y * del_y + del_z * del_z;
-			if (distance2 < h2) {				
-				distance = sqrt(distance2);
-				wfd = h - distance;
-				wfd = -25.066903536973515383e0 * wfd * wfd * ihsq * ihsq * ihsq * ih;
+			distance = sqrt(distance2);
+			wfd = h - distance;
+			wfd = -25.066903536973515383e0 * wfd * wfd * ihsq * ihsq * ihsq * ih;
+		
+			deltaE = 2. * mass[i] * mass[j] / (mass[i] + mass[j]);
+			deltaE *= (density[i] + density[j]) / (density[i] * density[j]);
+			deltaE *= alpha * (energy[i] - energy[j]) * wfd;
 			
-				deltaE = 2. * mass[i] * mass[j] / (mass[i] + mass[j]);
-				deltaE *= (density[i] + density[j]) / (density[i] * density[j]);
-				deltaE *= alpha * (energy[i] - energy[j]) * wfd;
-				
-				d_energy[i] += deltaE;
-			}
+			d_energy[i] += deltaE;
 		}
 	}
 	
@@ -386,26 +379,33 @@ void calculate_neighbors_atom(
 								double* z,
 								int*& count_neigbors,
 								int*& part_of_verlet_list,
-								double skin_size,
+								double h,
 								int index,
 								int N) {
 	
 	int j;
 	int count = 0;
 	double distance2;
-	double h2 = skin_size * skin_size;
+	double h2 = h * h;
 	double cur_x = x[index];
 	double cur_y = y[index];
 	double cur_z = z[index];
 	double del_x, del_y, del_z;
+	double j_x, j_y, j_z;
 	/*printf("%f %f %f %d\n", cur_x, cur_y, cur_z, index);*/
 	
 	for (j = 0; j < N; ++j) {
 		if (index == j)
 			continue;
-		del_x = cur_x - x[j];
-		del_y = cur_y - y[j];
-		del_z = cur_z - z[j];
+		j_x = x[j];
+		j_y = y[j];
+		j_z = z[j];
+		// cell condition
+		//if (fabs((cur_x - x[j])/ h) > 1 && fabs((cur_y - y[j])/ h) > 1 && fabs((cur_z - z[j])/ h) > 1)
+		//	continue;
+		del_x = cur_x - j_x;
+		del_y = cur_y - j_y;
+		del_z = cur_z - j_z;
 		
 		distance2 = del_x * del_x + del_y * del_y + del_z * del_z;
 		
@@ -431,20 +431,19 @@ void check_shift_matrix(
 							int N) {
 	
 	int i;
-	double delta_skin = skin_size - h;
 	
 	for (i = 0; i < N; ++i) {
-		if (shift_matrix[i] > delta_skin) {
-			calculate_neighbors_atom(x, y, z, count_neigbors, verlet_list[i], skin_size, i, N);
+		if (shift_matrix[i] > skin_size) {
+			calculate_neighbors_atom(x, y, z, count_neigbors, verlet_list[i], h, i, N);
 			shift_matrix[i] = 0.;
 		}
 	}
 
 }
 
-int main() {
-	// Physical model parameters
-	/*=====================================================================================================*/
+int main(int argc, char* argv[]) {
+// Physical model parameters
+/*=====================================================================================================*/
 	double mesh_size = 0.005; // m
 	double h = 1.5 * mesh_size; // m
 	double sound_velocity = 10; // m/s
@@ -456,29 +455,29 @@ int main() {
 	double d_coeff = 1e-4;
 	double dt = 0.01 * h / sound_velocity;
 	
-	int a = 20;
-	int b = 20;
-	int c = 20;
+	int a = 25;
+	int b = 25;
+	int c = 25;
 	
 	//double temperature_0 = 300.; // K
 	//double temperature_melting = 1688.; // K
 	//double lambda = 16.76;
 	//double d_coeff = lambda / (heat_capacity_volume * density_0);
-	/*=====================================================================================================*/
+/*=====================================================================================================*/
 
 	
 	
-	// Calculate parameters and buffers
-	/*=====================================================================================================*/
-	int count_of_steps = 1000;
+// Calculate parameters and buffers
+/*=====================================================================================================*/
+	int count_of_steps = 100;
 	
 	const int MAX_NEIGBORS = 50;
-	double skin_size = h * 1.05;
+	double skin_size = h * 0.05;
 	
 	int N = a * b * c;
 	
-	
-	int time, i, j;
+	int numb;
+	int time, i, j, k;
 	double distance, distance2;
 	double del_x, del_y, del_z;
 	double del_Vx, del_Vy, del_Vz;
@@ -492,12 +491,15 @@ int main() {
 	double Vx_cur, Vy_cur, Vz_cur;
 	
 	ofstream out_file("output.xyz");
-	/*=====================================================================================================*/
+	double tt_time;
+	
+	//int 
+/*=====================================================================================================*/
 
 	
 
-	// Pointers
-	/*=====================================================================================================*/
+// Pointers
+/*=====================================================================================================*/
 
 	double* x = new double[N];
 	double* y = new double[N];
@@ -530,17 +532,15 @@ int main() {
 		verlet_list[i] = new int[MAX_NEIGBORS];
 	
 	double* shift_matrix = new double[N];
+/*=====================================================================================================*/
 	
+
 	
-	/*=====================================================================================================*/
-
-
-	// Data initialize
-	/*=====================================================================================================*/
-	int numb;
-	for (int i = 0; i < a; ++i)
-		for (int j = 0; j < b; ++j)
-			for (int k = 0; k < c; ++k)
+// Data initialize
+/*=====================================================================================================*/
+	for (i = 0; i < a; ++i)
+		for (j = 0; j < b; ++j)
+			for (k = 0; k < c; ++k)
 			{
 				numb = i * (b * c) + j * c + k;
 
@@ -567,20 +567,21 @@ int main() {
 	fill(shift_matrix, shift_matrix + N, 0.);
 		
 	for (i = 0; i < N; ++i)
-		calculate_neighbors_atom(x, y, z, count_neigbors, verlet_list[i], skin_size, i, N);
+		calculate_neighbors_atom(x, y, z, count_neigbors, verlet_list[i], h, i, N);
 	
 	rho_sum(x, y, z, density, mass, count_neigbors, verlet_list, h, N);
-			
-	/*=====================================================================================================*/
+/*=====================================================================================================*/
 
 
 
-	// Time integrartion
-	/*=====================================================================================================*/
-	
+// Time integrartion
+/*=====================================================================================================*/
+
 	/* Step 0*/
 	taitwater_morris(x, y, z, Vx_est, Vy_est, Vz_est, Fx, Fy, Fz, mass, density, energy, d_density, d_energy, count_neigbors, verlet_list, h, density_0, sound_velocity, viscosity, N);
-	heatconduction(x, y, z, mass, density, energy, d_energy, count_neigbors, verlet_list, d_coeff, h, N);double tt_time = clock();
+	heatconduction(x, y, z, mass, density, energy, d_energy, count_neigbors, verlet_list, h, d_coeff, N);
+	
+	tt_time = clock();
 	for (time = 0; time < count_of_steps; ++time)
 	{
 		if (time % 10 == 0)
@@ -613,7 +614,7 @@ int main() {
 
 		/*Step 2: Calculate forces, d_density, d_energy*/
 		taitwater_morris(x, y, z, Vx_est, Vy_est, Vz_est, Fx, Fy, Fz, mass, density, energy, d_density, d_energy, count_neigbors, verlet_list, h, density_0, sound_velocity, viscosity, N);
-		heatconduction(x, y, z, mass, density, energy, d_energy, count_neigbors, verlet_list, d_coeff, h, N);
+		heatconduction(x, y, z, mass, density, energy, d_energy, count_neigbors, verlet_list, h, d_coeff, N);
 		
 		/*Step 3: Final integration*/
 		for (i = 0; i < N; ++i) 
@@ -632,12 +633,13 @@ int main() {
 		
 		check_shift_matrix(x, y, z, shift_matrix, count_neigbors, verlet_list, h, skin_size, N);
 	}
-	/*=====================================================================================================*/
 	printf("%f", clock() - tt_time);
+/*=====================================================================================================*/
 	
 	
-	// It's a DESTRUCTION TIME
-	/*=====================================================================================================*/
+	
+// It's a DESTRUCTION TIME
+/*=====================================================================================================*/
 	out_file.close();
 	
 	delete[]x;
@@ -664,9 +666,6 @@ int main() {
 	
 	delete[]d_energy;
 	delete[]d_density;
-	/*=====================================================================================================*/
-
-
-	
+/*=====================================================================================================*/
 	return 0;
 }
