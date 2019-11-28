@@ -43,45 +43,49 @@ void rho_sum(
 				double h,
 				int N) {
 					
-	double del_x, del_y, del_z;
-	double distance2, wfd;
 	double ih = 1. / h;
 	double ihsq = ih * ih;
 	double h2 = h * h;
+	double del_x, del_y, del_z;
+	double distance2, wfd;
 	int i, j;
 	int count;
 	int atom;
 	int* part_of_verlet_list;
-	
-	for (i = 0; i < N; ++i)
-	{
-		count = count_neigbors[i];
-		part_of_verlet_list = verlet_list[i];
+	//#pragma omp parallel
+	//{
 		
-		wfd = 2.1541870227086614782 / (h * h * h);
-		density[i] = mass[i] * wfd;
-	
-		for (atom = 0; atom < count; ++atom) {
-			j = part_of_verlet_list[atom];
-			del_x = x[i] - x[j];
-			del_y = y[i] - y[j];
-			del_z = z[i] - z[j];
+		
+		#pragma omp for schedule(static)
+		for (i = 0; i < N; ++i)
+		{
+			count = count_neigbors[i];
+			part_of_verlet_list = verlet_list[i];
+			
+			wfd = 2.1541870227086614782 / (h * h * h);
+			density[i] = mass[i] * wfd;
+			for (atom = 0; atom < count; ++atom) {
+				j = part_of_verlet_list[atom];
+				del_x = x[i] - x[j];
+				del_y = y[i] - y[j];
+				del_z = z[i] - z[j];
 
-			distance2 = del_x * del_x + del_y * del_y + del_z * del_z;	
-			wfd = 1. - distance2 * ihsq;
-			wfd = wfd * wfd;
-			wfd = wfd * wfd;
-			wfd = 2.1541870227086614782e0 * wfd * ihsq * ih;		
-
-			density[i] += mass[j] * wfd;
-			/*if (i == 0)
-			{
-				printf("%f\n", wfd);
-				printf("rho[0]:=%f\n", density[i]);
-			}*/		
+				distance2 = del_x * del_x + del_y * del_y + del_z * del_z;	
+				wfd = 1. - distance2 * ihsq;
+				wfd = wfd * wfd;
+				wfd = wfd * wfd;
+				wfd = 2.1541870227086614782e0 * wfd * ihsq * ih;		
+				#pragma atomic
+				density[i] += mass[j] * wfd;
+				/*if (i == 0)
+				{
+					printf("%f\n", wfd);
+					printf("rho[0]:=%f\n", density[i]);
+				}*/		
+			}
+			//printf("%d\n", count);
 		}
-		//printf("%d\n", count);
-	}
+	//}
 }
 
 void taitwater(
@@ -270,6 +274,8 @@ void taitwater_morris(
 	fill(Fz, Fz + N, 0.);
 	fill(d_density, d_density + N, 0.);
 	fill(d_energy, d_energy + N, 0.);
+	
+	#pragma omp for schedule(static)
 	for (i = 0; i < N; ++i) {
 		tmp = density[i] / density_0;
 		fi = tmp * tmp * tmp;
@@ -565,11 +571,15 @@ int main(int argc, char* argv[]) {
 	
 	fill(count_neigbors, count_neigbors + N, 0);
 	fill(shift_matrix, shift_matrix + N, 0.);
-		
+	
+	tt_time = clock(); /////////////////// TIME!!!	
+	# pragma for schedule(static)
 	for (i = 0; i < N; ++i)
 		calculate_neighbors_atom(x, y, z, count_neigbors, verlet_list[i], h, i, N);
 	
-	rho_sum(x, y, z, density, mass, count_neigbors, verlet_list, h, N);
+	//tt_time = clock(); /////////////////// TIME!!!
+	for (i = 0; i < 100; ++i)
+		rho_sum(x, y, z, density, mass, count_neigbors, verlet_list, h, N);
 /*=====================================================================================================*/
 
 
@@ -581,7 +591,7 @@ int main(int argc, char* argv[]) {
 	taitwater_morris(x, y, z, Vx_est, Vy_est, Vz_est, Fx, Fy, Fz, mass, density, energy, d_density, d_energy, count_neigbors, verlet_list, h, density_0, sound_velocity, viscosity, N);
 	heatconduction(x, y, z, mass, density, energy, d_energy, count_neigbors, verlet_list, h, d_coeff, N);
 	
-	tt_time = clock();
+	
 	for (time = 0; time < count_of_steps; ++time)
 	{
 		if (time % 10 == 0)
@@ -634,6 +644,7 @@ int main(int argc, char* argv[]) {
 		check_shift_matrix(x, y, z, shift_matrix, count_neigbors, verlet_list, h, skin_size, N);
 	}
 	printf("%f", clock() - tt_time);
+	read_data_xyz(out_file, x, y, z, Fx, Fy, Fz, density, energy, N);
 /*=====================================================================================================*/
 	
 	
