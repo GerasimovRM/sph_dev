@@ -493,11 +493,10 @@ int main(int argc, char* argv[]) {
 	ofstream out_file("output.xyz");
 	double tt_time;
 	
-	/*
+	
 	int errCode; // MPI
 	int myRank; // MPI
-	*/
-	int 
+	
 /*=====================================================================================================*/
 
 	
